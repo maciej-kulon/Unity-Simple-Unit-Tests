@@ -15,7 +15,7 @@ public class SimpleAssert
     public bool Succeed;
     public string FailMessage;
     public string Details;
-    public string PreviousAssert;
+    public string PreviousAssertionName;
     public dynamic FromPreviousAssertion;
 
     public SimpleAssert(object value)
@@ -55,7 +55,7 @@ public static class Assertion
     {
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
-
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
         if (sa.Value.Equals(value)) return sa;
         sa.Succeed = false;
         sa.FailMessage = $"IsEqual: {sa.Value} != {value}";
@@ -67,7 +67,7 @@ public static class Assertion
     {
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
-
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
         if (sa.Value.Equals(value))
         {
             sa.Succeed = false;
@@ -81,7 +81,7 @@ public static class Assertion
     {
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
-
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
         var value1 = Convert.ToDouble(sa.Value);
         var value2 = Convert.ToDouble(value);
 
@@ -97,7 +97,7 @@ public static class Assertion
     {
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
-
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
         var value1 = Convert.ToDouble(sa.Value);
         var value2 = Convert.ToDouble(value);
 
@@ -113,11 +113,11 @@ public static class Assertion
     {
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
+        var value1 = Convert.ToDouble(sa.Value);
+        var value2 = Convert.ToDouble(value);
 
-        var Value1 = Convert.ToDouble(sa.Value);
-        var Value2 = Convert.ToDouble(value);
-
-        if (Value1 < Value2)
+        if (value1 < value2)
             return sa;
 
         sa.Succeed = false;
@@ -129,7 +129,7 @@ public static class Assertion
     {
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
-
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
         var value1 = Convert.ToDouble(sa.Value);
         var value2 = Convert.ToDouble(value);
 
@@ -145,7 +145,7 @@ public static class Assertion
     {
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
-
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
         if (sa.Value.GetType() == value) return sa;
         sa.Succeed = false;
         sa.FailMessage = $"IsOfType: {sa.Value.GetType()} is not {value}";
@@ -157,7 +157,7 @@ public static class Assertion
     {
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
-
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
         if (value.IsInstanceOfType(sa.Value))
             return sa;
 
@@ -171,7 +171,7 @@ public static class Assertion
     {
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
-
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
         if (sa.Value.GetType() == value.GetType())
         {
             sa.Succeed = false;
@@ -186,7 +186,7 @@ public static class Assertion
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
 
-
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
         if (!ReferenceEquals(sa.Value, value))
         {
             sa.Succeed = false;
@@ -200,7 +200,7 @@ public static class Assertion
     {
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
-
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
         if (ReferenceEquals(sa.Value, value))
         {
             sa.Succeed = false;
@@ -212,6 +212,7 @@ public static class Assertion
 
     public static SimpleAssert And(this SimpleAssert sa1, SimpleAssert sa2)
     {
+        sa1.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
         if (sa1.Succeed && sa2.Succeed)
             return sa1;
         sa1.FailMessage =
@@ -223,9 +224,17 @@ public static class Assertion
     public static SimpleAssert Or(this SimpleAssert sa1, SimpleAssert sa2)
     {
         if (sa1.Succeed)
+        {
+            sa1.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
             return sa1;
+        }
+
         if (sa2.Succeed)
+        {
+            sa2.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
             return sa2;
+        }
+
         return sa1;
     }
 
@@ -248,10 +257,10 @@ public static class Assertion
 
     public static SimpleAssert ShouldContains<T>(this SimpleAssert sa, object value) where T : IEnumerable<object>
     {
-        var collection = ((T) sa.Value).ToList();
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
-
+        var collection = ((T) sa.Value).ToList();
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
         if (!collection.Contains(value))
         {
             sa.Succeed = false;
@@ -266,7 +275,7 @@ public static class Assertion
     {
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
-
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
         var l = Convert.ToInt64(value);
 
         switch (sa.Value)
@@ -300,7 +309,7 @@ public static class Assertion
     {
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
-
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
         var l = Convert.ToInt64(value);
 
         switch (sa.Value)
@@ -334,7 +343,7 @@ public static class Assertion
     {
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
-
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
         var l = Convert.ToInt64(value);
 
         switch (sa.Value)
@@ -369,7 +378,7 @@ public static class Assertion
     {
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
-
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
         var l = Convert.ToInt64(value);
 
         switch (sa.Value)
@@ -403,7 +412,7 @@ public static class Assertion
     {
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
-
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
         var l = Convert.ToInt64(value);
 
         switch (sa.Value)
@@ -441,7 +450,7 @@ public static class Assertion
     {
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
-
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
         var l = Convert.ToInt64(value);
 
         switch (sa.Value)
@@ -477,7 +486,7 @@ public static class Assertion
     {
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
-
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
         if (!sa.Value.ToString().Contains(value.ToString()))
         {
             sa.Succeed = false;
@@ -488,11 +497,11 @@ public static class Assertion
     }
 
 
-    public static SimpleAssert ShouldThrowException(this SimpleAssert sa, Type ofType = null)
+    public static SimpleAssert ThrowsException(this SimpleAssert sa, Type ofType = null)
     {
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
-
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
         try
         {
             if (sa.Value is Action method)
@@ -501,12 +510,12 @@ public static class Assertion
             }
             else
             {
-                sa.FailMessage = $"ShouldThrowException: Value used in Assertion.Create() is not a method function.";
+                sa.FailMessage = $"ThrowsException: Value used in Assertion.Create() is not a method function.";
                 sa.Succeed = false;
                 return sa;
             }
 
-            sa.FailMessage = $"ShouldThrowException: Method did not throw any exception";
+            sa.FailMessage = $"ThrowsException: Method did not throw any exception";
             sa.Succeed = false;
             return sa;
         }
@@ -515,16 +524,17 @@ public static class Assertion
             if (ofType == null) return sa;
             if (ex.GetType() == ofType) return sa;
             sa.FailMessage =
-                $"ShouldThrowException: Method thrown an exception, but of type {ex.GetType()} instead of {ofType} ";
+                $"ThrowsException: Method thrown an exception, but of type {ex.GetType()} instead of {ofType} ";
             sa.Succeed = false;
             return sa;
         }
     }
 
-    public static SimpleAssert ShouldHaveMember(this SimpleAssert sa, string name)
+    public static SimpleAssert HasMember(this SimpleAssert sa, string name)
     {
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
 
         var memberInfos = sa.Value.GetType()
             .GetMembers(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
@@ -533,17 +543,181 @@ public static class Assertion
 
         if (member != null)
         {
-            sa.PreviousAssert = MethodBase.GetCurrentMethod().Name;
             sa.FromPreviousAssertion = member;
             return sa;
         }
 
         sa.FailMessage = $"Object {sa.Value} does not have member with name {name}";
         sa.Succeed = false;
-        sa.PreviousAssert = MethodBase.GetCurrentMethod().Name;
         return sa;
     }
 
+    public static SimpleAssert IsMethod(this SimpleAssert sa)
+    {
+        if (!sa.Succeed)
+            throw new AssertionException(sa.FailMessage);
+
+        var allowedAssertions = new List<string>() {nameof(HasMember)};
+        var currentMethodName = MethodBase.GetCurrentMethod().Name;
+
+        if (!allowedAssertions.Contains(sa.PreviousAssertionName))
+        {
+            sa.Succeed = false;
+            sa.Details = $"{currentMethodName} has to be after one of the following " +
+                         $"assertions: {string.Join(", ", allowedAssertions)}";
+            sa.FailMessage = $"Wrong assertions order.  {sa.Details}";
+        }
+        else
+        {
+            var member = (MemberInfo) sa.FromPreviousAssertion;
+            if (member.MemberType != MemberTypes.Method) return sa;
+            sa.FromPreviousAssertion = sa.Value.GetType().GetMethod(member.Name);
+        }
+
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
+        return sa;
+    }
+
+    public static SimpleAssert IsProperty(this SimpleAssert sa)
+    {
+        if (!sa.Succeed)
+            throw new AssertionException(sa.FailMessage);
+        var allowedAssertions = new List<string>() {nameof(HasMember)};
+        var currentMethodName = MethodBase.GetCurrentMethod().Name;
+
+        if (!allowedAssertions.Contains(sa.PreviousAssertionName))
+        {
+            sa.Succeed = false;
+            sa.Details = $"{currentMethodName} has to be after one of the following " +
+                         $"assertions: {string.Join(", ", allowedAssertions)}";
+            sa.FailMessage = $"Wrong assertions order. {sa.Details}";
+        }
+        else
+        {
+            var member = (MemberInfo) sa.FromPreviousAssertion;
+            if (member.MemberType != MemberTypes.Property) return sa;
+            sa.FromPreviousAssertion = sa.Value.GetType().GetProperty(member.Name);
+        }
+
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
+        return sa;
+    }
+
+    public static SimpleAssert IsField(this SimpleAssert sa)
+    {
+        if (!sa.Succeed)
+            throw new AssertionException(sa.FailMessage);
+
+        var allowedAssertions = new List<string>() {nameof(HasMember)};
+        var currentMethodName = MethodBase.GetCurrentMethod().Name;
+
+        if (!allowedAssertions.Contains(sa.PreviousAssertionName))
+        {
+            sa.Succeed = false;
+            sa.Details = $"{currentMethodName} has to be after one of the following " +
+                         $"assertions: {string.Join(", ", allowedAssertions)}";
+            sa.FailMessage = $"Wrong assertions order. {sa.Details}";
+        }
+        else
+        {
+            var member = (MemberInfo) sa.FromPreviousAssertion;
+            if (member.MemberType != MemberTypes.Field) return sa;
+            sa.FromPreviousAssertion = sa.Value.GetType().GetField(member.Name);
+        }
+
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
+        return sa;
+    }
+
+
+    public static SimpleAssert OfType(this SimpleAssert sa, Type ofType)
+    {
+        if (!sa.Succeed)
+            throw new AssertionException(sa.FailMessage);
+
+        var allowedAssertions = new List<string>() {nameof(IsField), nameof(IsProperty)};
+        var currentMethodName = MethodBase.GetCurrentMethod().Name;
+
+        if (!allowedAssertions.Contains(sa.PreviousAssertionName))
+        {
+            sa.Succeed = false;
+            sa.Details = $"{currentMethodName} has to be after one of the following " +
+                         $"assertions: {string.Join(", ", allowedAssertions)}, was {sa.PreviousAssertionName}";
+            sa.FailMessage = $"Wrong assertions order. {sa.Details}";
+        }
+        else
+        {
+            switch (sa.FromPreviousAssertion)
+            {
+                case FieldInfo fieldInfo:
+                    if (fieldInfo.FieldType != ofType)
+                    {
+                        sa.FailMessage = $"{fieldInfo.Name} is {fieldInfo.FieldType}, expected: {ofType}";
+                        sa.Succeed = false;
+                        return sa;
+                    }
+
+                    break;
+                case PropertyInfo propertyInfo:
+                    if (propertyInfo.PropertyType != ofType)
+                    {
+                        sa.FailMessage = $"{propertyInfo.Name} is {propertyInfo.PropertyType} expected of {ofType}";
+                        sa.Succeed = false;
+                        return sa;
+                    }
+
+                    break;
+            }
+        }
+
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
+        return sa;
+    }
+
+    public static SimpleAssert ReturnsType(this SimpleAssert sa, Type returnType)
+    {
+        if (!sa.Succeed)
+            throw new AssertionException(sa.FailMessage);
+
+        var allowedAssertions = new List<string>() {nameof(IsMethod), nameof(IsProperty)};
+        var currentMethodName = MethodBase.GetCurrentMethod().Name;
+
+        if (!allowedAssertions.Contains(sa.PreviousAssertionName))
+        {
+            sa.Succeed = false;
+            sa.Details = $"{currentMethodName} has to be after one of the following " +
+                         $"assertions: {string.Join(", ", allowedAssertions)}, was {sa.PreviousAssertionName}";
+            sa.FailMessage = $"Wrong assertions order. {sa.Details}";
+        }
+        else
+        {
+            switch (sa.FromPreviousAssertion)
+            {
+                case MethodInfo methodInfo:
+                    if (methodInfo.ReturnType != returnType)
+                    {
+                        sa.FailMessage = $"{methodInfo.Name} returns {methodInfo.ReturnType} instead of {returnType}";
+                        sa.Succeed = false;
+                        return sa;
+                    }
+
+                    break;
+                case PropertyInfo propertyInfo:
+                    if (propertyInfo.PropertyType != returnType)
+                    {
+                        sa.FailMessage =
+                            $"{propertyInfo.Name} returns {propertyInfo.PropertyType} instead of {returnType}";
+                        sa.Succeed = false;
+                        return sa;
+                    }
+
+                    break;
+            }
+        }
+
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
+        return sa;
+    }
 
     public static SimpleAssert End(this SimpleAssert sa, string additionalErrorMessage = "")
     {
