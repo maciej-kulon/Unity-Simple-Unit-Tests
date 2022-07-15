@@ -3,6 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Dynamic;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Transactions;
 using UnityEngine;
 using Object = System.Object;
@@ -13,6 +15,8 @@ public class SimpleAssert
     public bool Succeed;
     public string FailMessage;
     public string Details;
+    public string PreviousAssert;
+    public dynamic FromPreviousAssertion;
 
     public SimpleAssert(object value)
     {
@@ -52,12 +56,9 @@ public static class Assertion
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
 
-
-        if (!sa.Value.Equals(value))
-        {
-            sa.Succeed = false;
-            sa.FailMessage = $"IsEqual: {sa.Value} != {value}";
-        }
+        if (sa.Value.Equals(value)) return sa;
+        sa.Succeed = false;
+        sa.FailMessage = $"IsEqual: {sa.Value} != {value}";
 
         return sa;
     }
@@ -243,6 +244,7 @@ public static class Assertion
 
         return sa;
     }
+
 
     public static SimpleAssert ShouldContains<T>(this SimpleAssert sa, object value) where T : IEnumerable<object>
     {
@@ -518,6 +520,30 @@ public static class Assertion
             return sa;
         }
     }
+
+    public static SimpleAssert ShouldHaveMember(this SimpleAssert sa, string name)
+    {
+        if (!sa.Succeed)
+            throw new AssertionException(sa.FailMessage);
+
+        var memberInfos = sa.Value.GetType()
+            .GetMembers(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+        var member = memberInfos.ToList().Find(s => s.Name == name);
+
+        if (member != null)
+        {
+            sa.PreviousAssert = MethodBase.GetCurrentMethod().Name;
+            sa.FromPreviousAssertion = member;
+            return sa;
+        }
+
+        sa.FailMessage = $"Object {sa.Value} does not have member with name {name}";
+        sa.Succeed = false;
+        sa.PreviousAssert = MethodBase.GetCurrentMethod().Name;
+        return sa;
+    }
+
 
     public static SimpleAssert End(this SimpleAssert sa, string additionalErrorMessage = "")
     {
