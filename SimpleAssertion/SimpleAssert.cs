@@ -255,18 +255,16 @@ public static class Assertion
     }
 
 
-    public static SimpleAssert ShouldContains<T>(this SimpleAssert sa, object value) where T : IEnumerable<object>
+    public static SimpleAssert ShouldContains<T>(this SimpleAssert sa, object value)
+        where T : IEnumerable<object>, ICollection
     {
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
         var collection = ((T) sa.Value).ToList();
         sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
-        if (!collection.Contains(value))
-        {
-            sa.Succeed = false;
-            sa.FailMessage = $"Contains: Collection {collection} does not contains {value}";
-        }
-
+        if (collection.Contains(value)) return sa;
+        sa.Succeed = false;
+        sa.FailMessage = $"Contains: Collection {collection} does not contains {value}";
         return sa;
     }
 
@@ -339,7 +337,7 @@ public static class Assertion
         return sa;
     }
 
-    public static SimpleAssert LengthGreater(this SimpleAssert sa, object value)
+    public static SimpleAssert LengthGreaterThan(this SimpleAssert sa, object value)
     {
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
@@ -353,7 +351,7 @@ public static class Assertion
                 var count = enumerable.Count();
                 if (count > l) return sa;
                 sa.Succeed = false;
-                sa.FailMessage = $"LengthGreater: Collection {enumerable} length is not greater {value}";
+                sa.FailMessage = $"LengthGreaterThan: Collection {enumerable} length is not greater {value}";
                 break;
             }
             case ICollection collection:
@@ -361,12 +359,13 @@ public static class Assertion
                 var count = collection.Count;
                 if (count > l) return sa;
                 sa.Succeed = false;
-                sa.FailMessage = $"LengthGreater: Collection {collection} length is not greater {value}";
+                sa.FailMessage = $"LengthGreaterThan: Collection {collection} length is not greater {value}";
                 break;
             }
             default:
                 sa.Succeed = false;
-                sa.FailMessage = $"LengthGreater: Parameter {sa.Value} is neither IEnumerable nor ICollection type.";
+                sa.FailMessage =
+                    $"LengthGreaterThan: Parameter {sa.Value} is neither IEnumerable nor ICollection type.";
                 break;
         }
 
@@ -557,21 +556,30 @@ public static class Assertion
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
 
-        var allowedAssertions = new List<string>() {nameof(HasMember)};
-        var currentMethodName = MethodBase.GetCurrentMethod().Name;
-
-        if (!allowedAssertions.Contains(sa.PreviousAssertionName))
+        var member = (MemberInfo) sa.FromPreviousAssertion;
+        if (member != null)
         {
-            sa.Succeed = false;
-            sa.Details = $"{currentMethodName} has to be after one of the following " +
-                         $"assertions: {string.Join(", ", allowedAssertions)}";
-            sa.FailMessage = $"Wrong assertions order.  {sa.Details}";
+            if (member.MemberType != MemberTypes.Method)
+            {
+                sa.FailMessage = $"Member {member} from object {sa.Value} is not a method.";
+                sa.Succeed = false;
+                sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
+                return sa;
+            }
+
+            sa.FromPreviousAssertion = sa.Value.GetType().GetMethod(member.Name);
         }
         else
         {
-            var member = (MemberInfo) sa.FromPreviousAssertion;
-            if (member.MemberType != MemberTypes.Method) return sa;
-            sa.FromPreviousAssertion = sa.Value.GetType().GetMethod(member.Name);
+            if (sa.Value.GetType().MemberType != MemberTypes.Field)
+            {
+                sa.FailMessage = $"{sa.Value} is not a method.";
+                sa.Succeed = false;
+                sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
+                return sa;
+            }
+
+            sa.FromPreviousAssertion = sa.Value;
         }
 
         sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
@@ -582,21 +590,30 @@ public static class Assertion
     {
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
-        var allowedAssertions = new List<string>() {nameof(HasMember)};
-        var currentMethodName = MethodBase.GetCurrentMethod().Name;
-
-        if (!allowedAssertions.Contains(sa.PreviousAssertionName))
+        var member = (MemberInfo) sa.FromPreviousAssertion;
+        if (member != null)
         {
-            sa.Succeed = false;
-            sa.Details = $"{currentMethodName} has to be after one of the following " +
-                         $"assertions: {string.Join(", ", allowedAssertions)}";
-            sa.FailMessage = $"Wrong assertions order. {sa.Details}";
+            if (member.MemberType != MemberTypes.Property)
+            {
+                sa.FailMessage = $"Member {member} from object {sa.Value} is not a property.";
+                sa.Succeed = false;
+                sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
+                return sa;
+            }
+
+            sa.FromPreviousAssertion = sa.Value.GetType().GetProperty(member.Name);
         }
         else
         {
-            var member = (MemberInfo) sa.FromPreviousAssertion;
-            if (member.MemberType != MemberTypes.Property) return sa;
-            sa.FromPreviousAssertion = sa.Value.GetType().GetProperty(member.Name);
+            if (sa.Value.GetType().MemberType != MemberTypes.Property)
+            {
+                sa.FailMessage = $"{sa.Value} is not a property.";
+                sa.Succeed = false;
+                sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
+                return sa;
+            }
+
+            sa.FromPreviousAssertion = sa.Value;
         }
 
         sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
@@ -608,21 +625,30 @@ public static class Assertion
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
 
-        var allowedAssertions = new List<string>() {nameof(HasMember)};
-        var currentMethodName = MethodBase.GetCurrentMethod().Name;
-
-        if (!allowedAssertions.Contains(sa.PreviousAssertionName))
+        var member = (MemberInfo) sa.FromPreviousAssertion;
+        if (member != null)
         {
-            sa.Succeed = false;
-            sa.Details = $"{currentMethodName} has to be after one of the following " +
-                         $"assertions: {string.Join(", ", allowedAssertions)}";
-            sa.FailMessage = $"Wrong assertions order. {sa.Details}";
+            if (member.MemberType != MemberTypes.Field)
+            {
+                sa.FailMessage = $"Member {member} from object {sa.Value} is not a field.";
+                sa.Succeed = false;
+                sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
+                return sa;
+            }
+
+            sa.FromPreviousAssertion = sa.Value.GetType().GetField(member.Name);
         }
         else
         {
-            var member = (MemberInfo) sa.FromPreviousAssertion;
-            if (member.MemberType != MemberTypes.Field) return sa;
-            sa.FromPreviousAssertion = sa.Value.GetType().GetField(member.Name);
+            if (sa.Value.GetType().MemberType != MemberTypes.Field)
+            {
+                sa.FailMessage = $"{sa.Value} is not a field.";
+                sa.Succeed = false;
+                sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
+                return sa;
+            }
+
+            sa.FromPreviousAssertion = sa.Value;
         }
 
         sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
@@ -652,7 +678,7 @@ public static class Assertion
                 case FieldInfo fieldInfo:
                     if (fieldInfo.FieldType != ofType)
                     {
-                        sa.FailMessage = $"{fieldInfo.Name} is {fieldInfo.FieldType}, expected: {ofType}";
+                        sa.FailMessage = $"Field {fieldInfo.Name} is {fieldInfo.FieldType}, expected: {ofType}";
                         sa.Succeed = false;
                         return sa;
                     }
@@ -661,7 +687,7 @@ public static class Assertion
                 case PropertyInfo propertyInfo:
                     if (propertyInfo.PropertyType != ofType)
                     {
-                        sa.FailMessage = $"{propertyInfo.Name} is {propertyInfo.PropertyType} expected of {ofType}";
+                        sa.FailMessage = $"Property {propertyInfo.Name} is {propertyInfo.PropertyType} expected of {ofType}";
                         sa.Succeed = false;
                         return sa;
                     }
@@ -679,7 +705,7 @@ public static class Assertion
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
 
-        var allowedAssertions = new List<string>() {nameof(IsMethod), nameof(IsProperty)};
+        var allowedAssertions = new List<string>() {nameof(IsMethod), nameof(IsProperty), nameof(IsField)};
         var currentMethodName = MethodBase.GetCurrentMethod().Name;
 
         if (!allowedAssertions.Contains(sa.PreviousAssertionName))
@@ -696,7 +722,8 @@ public static class Assertion
                 case MethodInfo methodInfo:
                     if (methodInfo.ReturnType != returnType)
                     {
-                        sa.FailMessage = $"{methodInfo.Name} returns {methodInfo.ReturnType} instead of {returnType}";
+                        sa.FailMessage =
+                            $"Method {methodInfo.Name} returns {methodInfo.ReturnType} instead of {returnType}";
                         sa.Succeed = false;
                         return sa;
                     }
@@ -706,7 +733,17 @@ public static class Assertion
                     if (propertyInfo.PropertyType != returnType)
                     {
                         sa.FailMessage =
-                            $"{propertyInfo.Name} returns {propertyInfo.PropertyType} instead of {returnType}";
+                            $"Property {propertyInfo.Name} returns {propertyInfo.PropertyType} instead of {returnType}";
+                        sa.Succeed = false;
+                        return sa;
+                    }
+
+                    break;
+                case FieldInfo fieldInfo:
+                    if (fieldInfo.FieldType != returnType)
+                    {
+                        sa.FailMessage =
+                            $"Field {fieldInfo.Name} returns {fieldInfo.FieldType} instead of {returnType}";
                         sa.Succeed = false;
                         return sa;
                     }

@@ -62,7 +62,7 @@ public class TestRunner : EditorWindow
         var color = GUI.color;
         foreach (var testClass in TestResults)
         {
-            GUI.color = testClass.Passed ? Color.green : Color.red;
+            GUI.color = testClass.Passed ? Color.green : Color.yellow;
             // EditorGUILayout.LabelField("TEST __" + testClass.Name + "__");
             var passed = testClass.TestCasesResults.Count(s => s.Passed);
             var failed = testClass.TestCasesResults.Count - passed;
@@ -86,7 +86,7 @@ public class TestRunner : EditorWindow
                     }
                 }
 
-                GUI.color = testCase.Passed ? Color.green : Color.red;
+                GUI.color = testCase.Passed ? Color.green : Color.yellow;
                 EditorGUILayout.LabelField("CASE __" + testCase.Name + "__");
                 EditorGUILayout.EndHorizontal();
 
