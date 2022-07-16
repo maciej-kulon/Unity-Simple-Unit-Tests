@@ -4,9 +4,12 @@ using System.Collections.Generic;
 using System.Dynamic;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Transactions;
+using _AssetsStore.Standard_Assets.Effects.ImageEffects.AntiAliasing;
 using UnityEngine;
+using UnityEngine.Events;
 using Object = System.Object;
 
 public class SimpleAssert
@@ -40,10 +43,12 @@ public static class Assertion
         return new SimpleAssert(value);
     }
 
+
     public static SimpleAssert Create(Action value)
     {
         return new SimpleAssert(value);
     }
+
 
     public static SimpleAssert AddDetails(this SimpleAssert sa, string details)
     {
@@ -571,7 +576,9 @@ public static class Assertion
         }
         else
         {
-            if (sa.Value.GetType().MemberType != MemberTypes.Field)
+            if (sa.Value.GetType().MemberType != MemberTypes.Field
+                && sa.Value is not Action
+                && sa.Value is not UnityAction)
             {
                 sa.FailMessage = $"{sa.Value} is not a method.";
                 sa.Succeed = false;
@@ -687,7 +694,8 @@ public static class Assertion
                 case PropertyInfo propertyInfo:
                     if (propertyInfo.PropertyType != ofType)
                     {
-                        sa.FailMessage = $"Property {propertyInfo.Name} is {propertyInfo.PropertyType} expected of {ofType}";
+                        sa.FailMessage =
+                            $"Property {propertyInfo.Name} is {propertyInfo.PropertyType} expected of {ofType}";
                         sa.Succeed = false;
                         return sa;
                     }
