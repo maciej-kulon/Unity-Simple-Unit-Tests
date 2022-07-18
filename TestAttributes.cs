@@ -5,10 +5,11 @@ using System.Reflection;
 
 namespace SimpleTests
 {
-    [AttributeUsage(AttributeTargets.Class)]
+    [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
     public class TestClassAttribute : Attribute
     {
         public string Name;
+        public string SceneName;
         public bool expandGroup;
         
         public bool Passed
@@ -18,9 +19,10 @@ namespace SimpleTests
 
         public List<TestCaseAttribute> TestCasesResults;
 
-        public TestClassAttribute(string testGroupName)
+        public TestClassAttribute(string testGroupName, string runOnSceneLoadName = "")
         {
             Name = testGroupName;
+            SceneName = runOnSceneLoadName;
             TestCasesResults = new List<TestCaseAttribute>();
         }
     }
