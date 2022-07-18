@@ -1,76 +1,74 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Dynamic;
 using System.Linq;
 using System.Reflection;
-using _Scripts.GameManagement;
-using NUnit.Framework;
-using PlasticGui.WorkspaceWindow.BranchExplorer;
 using SimpleTests;
+using SimpleTests.Extensions;
 using UnityEditor;
-using UnityEditor.Graphs;
-using UnityEditor.VersionControl;
+using UnityEditor.SceneManagement;
 using UnityEngine;
-using UnityEngine.Purchasing.MiniJSON;
-using Assert = UnityEngine.Assertions.Assert;
-using Object = System.Object;
-using TestCaseAttribute = SimpleTests.TestCaseAttribute;
 
 public class TestRunner : EditorWindow
 {
-    private List<Type> TestClasses = new List<Type>();
-    private List<TestClassAttribute> TestResults = new List<TestClassAttribute>();
+    private List<TestClassAttribute> _testResults = new List<TestClassAttribute>();
+
+    private string _exceptionDetails = string.Empty;
+    private string _assertionDetails = string.Empty;
+    private Vector2 _scrollPosition = Vector2.zero;
+    private bool _runTestOnSceneOpenedEvent;
+    private bool _runTestOnSceneOpenedSubscribed;
 
     [MenuItem("Window/MK Test runner")]
-    static void Init()
+    private static void Init()
     {
-        TestRunner window = (TestRunner) EditorWindow.GetWindow(typeof(TestRunner));
+        var window = (TestRunner) EditorWindow.GetWindow(typeof(TestRunner));
         window.Show();
         window.titleContent = new GUIContent("MK Simple Test Runner");
+        FindTestGroups();
     }
 
 
-    private void FindTestClasses()
+    private static EditorSceneManager.SceneOpenedCallback EditorSceneManagerOnSceneOpened(TestRunner window)
     {
-        TestClasses.Clear();
-        var assembly = Assembly.Load("Assembly-CSharp");
-        foreach (var type in assembly.ExportedTypes)
+        return (scene, mode) =>
         {
-            if (type.GetCustomAttribute(typeof(TestClassAttribute)) is TestClassAttribute)
-            {
-                TestClasses.Add(type);
-            }
-        }
+            window._exceptionDetails = string.Empty;
+            window._assertionDetails = string.Empty;
+            window._testResults = RunTests(FindTestGroups(), scene.name);
+        };
     }
 
-    string exceptionDetails = string.Empty;
-    string assertionDetails = string.Empty;
-    Vector2 scrollPosition = Vector2.zero;
+
+    private static List<Type> FindTestGroups()
+    {
+        var assembly = Assembly.Load("Assembly-CSharp");
+        return assembly.ExportedTypes
+            .Where(type => type.GetCustomAttribute(typeof(TestClassAttribute)) is TestClassAttribute).ToList();
+    }
+
 
     private void OnGUI()
     {
-        if (GUILayout.Button("Run tests", GUILayout.MaxWidth(EditorGUIUtility.currentViewWidth - 20)))
-        {
-            FindTestClasses();
-            exceptionDetails = string.Empty;
-            assertionDetails = string.Empty;
-            TestResults = RunTests();
-        }
+        _runTestOnSceneOpenedEvent =
+            EditorGUILayout.ToggleLeft("Run tests when scene is opened", _runTestOnSceneOpenedEvent);
 
-        scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
-        var color = GUI.color;
-        foreach (var testClass in TestResults)
+        HandleAutoTestsRunOnSceneChanged();
+
+        HandleRunTestsButton();
+
+        _scrollPosition = EditorGUILayout.BeginScrollView(_scrollPosition);
+        var defaultGuiColor = GUI.color;
+        foreach (var testClass in _testResults)
         {
             GUI.color = testClass.Passed ? Color.green : Color.yellow;
-            // EditorGUILayout.LabelField("TEST __" + testClass.Name + "__");
             var passed = testClass.TestCasesResults.Count(s => s.Passed);
             var failed = testClass.TestCasesResults.Count - passed;
             testClass.expandGroup = EditorGUILayout.Foldout(testClass.expandGroup,
                 $"{testClass.Name} Passed: {passed} Failed: {failed}", true);
-            
+
             if (!testClass.expandGroup) continue;
             EditorGUI.indentLevel++;
+
             foreach (var testCase in testClass.TestCasesResults)
             {
                 EditorGUILayout.BeginHorizontal();
@@ -81,24 +79,25 @@ public class TestRunner : EditorWindow
                     {
                         if (GUILayout.Button("Details", GUILayout.Width(50)))
                         {
-                            assertionDetails = testCase.AssertionDetails;
+                            _assertionDetails = testCase.AssertionDetails;
                         }
                     }
                 }
 
                 GUI.color = testCase.Passed ? Color.green : Color.yellow;
-                EditorGUILayout.LabelField("CASE __" + testCase.Name + "__");
+                EditorGUILayout.LabelField("CASE " + testCase.Name + "");
                 EditorGUILayout.EndHorizontal();
 
                 if (!testCase.ErrorMessage.IsNotEmpty()) continue;
                 GUI.color = Color.white;
                 EditorGUILayout.BeginHorizontal();
                 EditorGUI.indentLevel++;
+
                 if (testCase.ExceptionDetails.IsNotEmpty())
                 {
                     if (GUILayout.Button("Error", GUILayout.Width(50)))
                     {
-                        exceptionDetails = testCase.ExceptionDetails;
+                        _exceptionDetails = testCase.ExceptionDetails;
                     }
                 }
 
@@ -112,29 +111,66 @@ public class TestRunner : EditorWindow
             EditorGUILayout.Space();
         }
 
-        if (exceptionDetails.IsNotEmpty())
+        if (_exceptionDetails.IsNotEmpty())
         {
             GUI.color = Color.yellow;
-            EditorGUILayout.HelpBox(exceptionDetails, MessageType.Info);
+            EditorGUILayout.HelpBox(_exceptionDetails, MessageType.Info);
         }
 
-        if (assertionDetails.IsNotEmpty())
+        if (_assertionDetails.IsNotEmpty())
         {
             GUI.color = Color.white;
-            EditorGUILayout.HelpBox(assertionDetails, MessageType.Info);
+            EditorGUILayout.HelpBox(_assertionDetails, MessageType.Info);
         }
 
         EditorGUILayout.EndScrollView();
 
-        GUI.color = color;
+        GUI.color = defaultGuiColor;
     }
 
-    private List<TestClassAttribute> RunTests()
+    private void HandleRunTestsButton()
+    {
+        if (!GUILayout.Button("Run tests", GUILayout.MaxWidth(EditorGUIUtility.currentViewWidth - 20))) return;
+        FindTestGroups();
+        _exceptionDetails = string.Empty;
+        _assertionDetails = string.Empty;
+        _testResults = RunTests(FindTestGroups(), string.Empty);
+    }
+
+    private void HandleAutoTestsRunOnSceneChanged()
+    {
+        switch (_runTestOnSceneOpenedEvent)
+        {
+            case true:
+            {
+                if (!_runTestOnSceneOpenedSubscribed)
+                {
+                    EditorSceneManager.sceneOpened += EditorSceneManagerOnSceneOpened(this);
+                    _runTestOnSceneOpenedSubscribed = true;
+                }
+
+                break;
+            }
+            case false:
+            {
+                if (_runTestOnSceneOpenedSubscribed)
+                {
+                    EditorSceneManager.sceneOpened -= EditorSceneManagerOnSceneOpened(this);
+                    _runTestOnSceneOpenedSubscribed = true;
+                }
+
+                break;
+            }
+        }
+    }
+
+    private static List<TestClassAttribute> RunTests(List<Type> testClasses, string sceneFilter)
     {
         var results = new List<TestClassAttribute>();
-        foreach (var classTest in TestClasses)
+        foreach (var classTest in testClasses)
         {
             var testClassAttribute = classTest.GetCustomAttribute(typeof(TestClassAttribute)) as TestClassAttribute;
+            if (sceneFilter.IsNotEmpty() && testClassAttribute?.SceneName != sceneFilter) continue;
 
             var setupMethods =
                 classTest.GetMethods().Where(s => s.IsDefined(typeof(TestSetupAttribute))).ToHashSet();
@@ -153,9 +189,11 @@ public class TestRunner : EditorWindow
 
             var testClassInstance = Activator.CreateInstance(classTest);
 
-            RunPreparationMethodsSet(setupMethods, testClassInstance, testClassAttribute);
+            if (sceneFilter.IsEmpty())
+                RunPreparationMethodsSet(setupMethods, testClassInstance, testClassAttribute);
             RunTestCases(beforeEveryTest, afterEveryTest, testMethods, testClassInstance, testClassAttribute);
-            RunPreparationMethodsSet(cleanupMethods, testClassInstance, testClassAttribute);
+            if (sceneFilter.IsEmpty())
+                RunPreparationMethodsSet(cleanupMethods, testClassInstance, testClassAttribute);
 
             results.Add(testClassAttribute);
         }
@@ -207,7 +245,7 @@ public class TestRunner : EditorWindow
                             for (var i = 0; i < simpleAsserts.Count; i++)
                                 testCaseAttribute.AssertionDetails += $"{(i + 1)}. {simpleAsserts[i].Details}\n";
                         else if (methodReturnValue != testCaseAttribute.ExpectedResult)
-                            throw new AssertionException(
+                            throw new Assertion.AssertionException(
                                 $"Expected return value is not equal. Expected: {testCaseAttribute.ExpectedResult}, Returned: {methodReturnValue}");
 
                         testCaseAttribute.Passed = true;
@@ -222,7 +260,7 @@ public class TestRunner : EditorWindow
                             for (var i = 0; i < simpleAsserts.Count; i++)
                                 testCaseAttribute.AssertionDetails += $"{(i + 1)}. {simpleAsserts[i].Details}\n";
                         else if (methodReturnValue != testCaseAttribute.ExpectedResult)
-                            throw new AssertionException(
+                            throw new Assertion.AssertionException(
                                 $"Expected return value is not equal. Expected: {testCaseAttribute.ExpectedResult}, Returned: {methodReturnValue}");
 
                         testCaseAttribute.Passed = true;
