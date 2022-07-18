@@ -708,6 +708,52 @@ public static class Assertion
         return sa;
     }
 
+    public static SimpleAssert WithValue(this SimpleAssert sa, object value)
+    {
+        if (!sa.Succeed)
+            throw new AssertionException(sa.FailMessage);
+
+        var allowedAssertions = new List<string>() {nameof(IsField), nameof(IsProperty), nameof(OfType)};
+        var currentMethodName = MethodBase.GetCurrentMethod().Name;
+
+        if (!allowedAssertions.Contains(sa.PreviousAssertionName))
+        {
+            sa.Succeed = false;
+            sa.Details = $"{currentMethodName} has to be after one of the following " +
+                         $"assertions: {string.Join(", ", allowedAssertions)}, was {sa.PreviousAssertionName}";
+            sa.FailMessage = $"Wrong assertions order. {sa.Details}";
+        }
+        else
+        {
+            switch (sa.FromPreviousAssertion)
+            {
+                case FieldInfo fieldInfo:
+                    var fieldValue = fieldInfo.GetValue(sa.Value);
+                    if (!fieldValue.Equals(value))
+                    {
+                        sa.FailMessage = $"Field {fieldInfo.Name} has value {fieldValue}, expected {value}";
+                        sa.Succeed = false;
+                        return sa;
+                    }
+
+                    break;
+                case PropertyInfo propertyInfo:
+                    var propertyValue = propertyInfo.GetValue(sa.Value);
+                    if (!propertyValue.Equals(value))
+                    {
+                        sa.FailMessage = $"Field {propertyInfo.Name} has value {propertyValue}, expected {value}";
+                        sa.Succeed = false;
+                        return sa;
+                    }
+
+                    break;
+            }
+        }
+
+        sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
+        return sa;
+    }
+
     public static SimpleAssert ReturnsType(this SimpleAssert sa, Type returnType)
     {
         if (!sa.Succeed)
