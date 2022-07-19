@@ -8,9 +8,10 @@ namespace SimpleTests
     [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
     public class TestClassAttribute : Attribute
     {
-        public string Name;
-        public string SceneName;
-        public bool expandGroup;
+        public readonly string Name;
+        public readonly string SceneName;
+        public bool ExpandGroup;
+        public long ElapsedTime;
         
         public bool Passed
         {

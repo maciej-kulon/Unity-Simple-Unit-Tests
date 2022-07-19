@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using SimpleTests;
@@ -7,13 +8,13 @@ using SimpleTests.Extensions;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 public class TestRunner : EditorWindow
 {
-    private List<TestClassAttribute> _testResults = new List<TestClassAttribute>();
+    private List<TestClassAttribute> _testResults = new();
 
-    private string _exceptionDetails = string.Empty;
-    private string _assertionDetails = string.Empty;
+    private TestCaseAttribute _detailsCase;
     private Vector2 _scrollPosition = Vector2.zero;
     private bool _runTestOnSceneOpenedEvent;
     private bool _runTestOnSceneOpenedSubscribed;
@@ -32,8 +33,7 @@ public class TestRunner : EditorWindow
     {
         return (scene, mode) =>
         {
-            window._exceptionDetails = string.Empty;
-            window._assertionDetails = string.Empty;
+            window._detailsCase = null;
             window._testResults = RunTests(FindTestGroups(), scene.name);
         };
     }
@@ -63,43 +63,50 @@ public class TestRunner : EditorWindow
             GUI.color = testClass.Passed ? Color.green : Color.yellow;
             var passed = testClass.TestCasesResults.Count(s => s.Passed);
             var failed = testClass.TestCasesResults.Count - passed;
-            testClass.expandGroup = EditorGUILayout.Foldout(testClass.expandGroup,
-                $"{testClass.Name} Passed: {passed} Failed: {failed}", true);
+            testClass.ExpandGroup = EditorGUILayout.Foldout(testClass.ExpandGroup,
+                $"{testClass.Name} Passed: {passed} Failed: {failed} ({testClass.ElapsedTime}ms)", true);
 
-            if (!testClass.expandGroup) continue;
+            if (!testClass.ExpandGroup) continue;
             EditorGUI.indentLevel++;
 
             foreach (var testCase in testClass.TestCasesResults)
             {
                 EditorGUILayout.BeginHorizontal();
+                GUI.color = Color.white;
                 if (testCase.AssertionDetails.IsNotEmpty())
                 {
-                    GUI.color = Color.white;
-                    if (testCase.AssertionDetails.IsNotEmpty())
+                    if (GUILayout.Button("Details", GUILayout.Width(50)))
                     {
-                        if (GUILayout.Button("Details", GUILayout.Width(50)))
-                        {
-                            _assertionDetails = testCase.AssertionDetails;
-                        }
+                        _detailsCase = testCase;
+                    }
+                }
+                else if (testCase.ExceptionDetails.IsNotEmpty())
+                {
+                    if (GUILayout.Button("Error", GUILayout.Width(50)))
+                    {
+                        _detailsCase = testCase;
                     }
                 }
 
+
                 GUI.color = testCase.Passed ? Color.green : Color.yellow;
-                EditorGUILayout.LabelField("CASE " + testCase.Name + "");
+                EditorGUILayout.LabelField("CASE " + testCase.Name + $" ({testCase.ElapsedTime}ms)");
                 EditorGUILayout.EndHorizontal();
+
+                if (ReferenceEquals(testCase, _detailsCase))
+                {
+                    var isError = testCase.ExceptionDetails.IsEmpty();
+                    GUI.color = isError ? Color.yellow : Color.white;
+                    EditorGUILayout.HelpBox(
+                        (isError ? testCase.ExceptionDetails : testCase.AssertionDetails),
+                        MessageType.Info);
+                }
 
                 if (!testCase.ErrorMessage.IsNotEmpty()) continue;
                 GUI.color = Color.white;
                 EditorGUILayout.BeginHorizontal();
                 EditorGUI.indentLevel++;
 
-                if (testCase.ExceptionDetails.IsNotEmpty())
-                {
-                    if (GUILayout.Button("Error", GUILayout.Width(50)))
-                    {
-                        _exceptionDetails = testCase.ExceptionDetails;
-                    }
-                }
 
                 EditorGUILayout.LabelField(testCase.ErrorMessage);
                 EditorGUI.indentLevel--;
@@ -111,18 +118,6 @@ public class TestRunner : EditorWindow
             EditorGUILayout.Space();
         }
 
-        if (_exceptionDetails.IsNotEmpty())
-        {
-            GUI.color = Color.yellow;
-            EditorGUILayout.HelpBox(_exceptionDetails, MessageType.Info);
-        }
-
-        if (_assertionDetails.IsNotEmpty())
-        {
-            GUI.color = Color.white;
-            EditorGUILayout.HelpBox(_assertionDetails, MessageType.Info);
-        }
-
         EditorGUILayout.EndScrollView();
 
         GUI.color = defaultGuiColor;
@@ -132,8 +127,7 @@ public class TestRunner : EditorWindow
     {
         if (!GUILayout.Button("Run tests", GUILayout.MaxWidth(EditorGUIUtility.currentViewWidth - 20))) return;
         FindTestGroups();
-        _exceptionDetails = string.Empty;
-        _assertionDetails = string.Empty;
+        _detailsCase = null;
         _testResults = RunTests(FindTestGroups(), string.Empty);
     }
 
@@ -219,7 +213,7 @@ public class TestRunner : EditorWindow
         }
     }
 
-    public static Exception GetDeepestException(Exception ex)
+    private static Exception GetDeepestException(Exception ex)
     {
         return ex.InnerException != null ? GetDeepestException(ex.InnerException) : ex;
     }
@@ -229,43 +223,52 @@ public class TestRunner : EditorWindow
         HashSet<MethodInfo> testMethods, object testClassInstance,
         TestClassAttribute testClassAttribute)
     {
+        var generalStopWatch = Stopwatch.StartNew();
         foreach (var testMethod in testMethods)
         {
             var testCases = testMethod.GetCustomAttributes<TestCaseAttribute>();
-            foreach (var testCaseAttribute in testCases)
+            foreach (var testCase in testCases)
             {
+                var testCaseStopWatch = Stopwatch.StartNew();
+
                 try
                 {
                     foreach (var mInfo in beforeMethods) mInfo.Invoke(testClassInstance, null);
-                    object parameters = testCaseAttribute.Parameters;
+                    object parameters = testCase.Parameters;
                     if (parameters is object[] {Length: > 0} paramsArray)
                     {
                         var methodReturnValue = testMethod.Invoke(testClassInstance, paramsArray);
                         if (methodReturnValue is List<SimpleAssert> simpleAsserts)
+                        {
                             for (var i = 0; i < simpleAsserts.Count; i++)
-                                testCaseAttribute.AssertionDetails += $"{(i + 1)}. {simpleAsserts[i].Details}\n";
-                        else if (methodReturnValue != testCaseAttribute.ExpectedResult)
+                                if (simpleAsserts[i].Details.IsNotEmpty())
+                                    testCase.AssertionDetails += $"{(i + 1)}. {simpleAsserts[i].Details}\n";
+                        }
+                        else if (methodReturnValue != testCase.ExpectedResult)
                             throw new Assertion.AssertionException(
-                                $"Expected return value is not equal. Expected: {testCaseAttribute.ExpectedResult}, Returned: {methodReturnValue}");
+                                $"Expected return value is as expected. Expected: {testCase.ExpectedResult}, Returned: {methodReturnValue}");
 
-                        testCaseAttribute.Passed = true;
-                        testCaseAttribute.ErrorMessage = "";
-                        testClassAttribute.TestCasesResults.Add(testCaseAttribute);
+                        testCase.Passed = true;
+                        testCase.ErrorMessage = "";
+                        testClassAttribute.TestCasesResults.Add(testCase);
                     }
                     else
                     {
                         var methodReturnValue = testMethod.Invoke(testClassInstance, null);
 
                         if (methodReturnValue is List<SimpleAssert> simpleAsserts)
+                        {
                             for (var i = 0; i < simpleAsserts.Count; i++)
-                                testCaseAttribute.AssertionDetails += $"{(i + 1)}. {simpleAsserts[i].Details}\n";
-                        else if (methodReturnValue != testCaseAttribute.ExpectedResult)
+                                if (simpleAsserts[i].Details.IsNotEmpty())
+                                    testCase.AssertionDetails += $"{(i + 1)}. {simpleAsserts[i].Details}\n";
+                        }
+                        else if (methodReturnValue != testCase.ExpectedResult)
                             throw new Assertion.AssertionException(
-                                $"Expected return value is not equal. Expected: {testCaseAttribute.ExpectedResult}, Returned: {methodReturnValue}");
+                                $"Expected return value is not as expected. Expected: {testCase.ExpectedResult}, Returned: {methodReturnValue}");
 
-                        testCaseAttribute.Passed = true;
-                        testCaseAttribute.ErrorMessage = "";
-                        testClassAttribute.TestCasesResults.Add(testCaseAttribute);
+                        testCase.Passed = true;
+                        testCase.ErrorMessage = "";
+                        testClassAttribute.TestCasesResults.Add(testCase);
                     }
 
                     foreach (var mInfo in afterMethods) mInfo.Invoke(testClassInstance, null);
@@ -274,8 +277,8 @@ public class TestRunner : EditorWindow
                 {
                     if (GetDeepestException(ex1) is Assertion.AssertionException assertionException1)
                     {
-                        testCaseAttribute.ErrorMessage = assertionException1.Message;
-                        testClassAttribute.TestCasesResults.Add(testCaseAttribute);
+                        testCase.ErrorMessage = assertionException1.Message;
+                        testClassAttribute.TestCasesResults.Add(testCase);
                         try
                         {
                             foreach (var mInfo in afterMethods) mInfo.Invoke(testClassInstance, null);
@@ -283,23 +286,28 @@ public class TestRunner : EditorWindow
                         catch (Exception ex2)
                         {
                             var deepestException = GetDeepestException(ex2);
-                            testCaseAttribute.ErrorMessage = deepestException.Message;
-                            testCaseAttribute.ExceptionDetails = deepestException.StackTrace;
-                            testClassAttribute.TestCasesResults.Add(testCaseAttribute);
+                            testCase.ErrorMessage = deepestException.Message;
+                            testCase.ExceptionDetails = deepestException.StackTrace;
+                            testClassAttribute.TestCasesResults.Add(testCase);
                         }
                     }
                     else
                     {
                         var deepestException = GetDeepestException(ex1);
-                        testCaseAttribute.ErrorMessage =
+                        testCase.ErrorMessage =
                             "Unknown Exception (not AssertionException) occured.";
-                        testCaseAttribute.ExceptionDetails =
+                        testCase.ExceptionDetails =
                             "Following exception was thrown in your game code, not in Assertion methods chain.\n\n" +
                             deepestException.Message + "\n" + deepestException.StackTrace;
-                        testClassAttribute.TestCasesResults.Add(testCaseAttribute);
+                        testClassAttribute.TestCasesResults.Add(testCase);
                     }
                 }
+
+                testCase.ElapsedTime = testCaseStopWatch.ElapsedMilliseconds;
             }
         }
+
+        testClassAttribute.ElapsedTime = generalStopWatch.ElapsedMilliseconds;
+        generalStopWatch.Stop();
     }
 }
