@@ -1,16 +1,9 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Dynamic;
 using System.Linq;
 using System.Reflection;
-using System.Reflection.Emit;
-using System.Runtime.CompilerServices;
-using System.Transactions;
-using _AssetsStore.Standard_Assets.Effects.ImageEffects.AntiAliasing;
-using UnityEngine;
 using UnityEngine.Events;
-using Object = System.Object;
 
 public class SimpleAssert
 {
