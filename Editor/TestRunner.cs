@@ -1,14 +1,17 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using NUnit.Framework;
 using SimpleTests;
 using SimpleTests.Extensions;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
+using TestCaseAttribute = SimpleTests.TestCaseAttribute;
 
 public class TestRunner : EditorWindow
 {
@@ -95,7 +98,7 @@ public class TestRunner : EditorWindow
 
                 if (ReferenceEquals(testCase, _detailsCase))
                 {
-                    var isError = testCase.ExceptionDetails.IsEmpty();
+                    var isError = testCase.ExceptionDetails.IsNotEmpty();
                     GUI.color = isError ? Color.yellow : Color.white;
                     EditorGUILayout.HelpBox(
                         (isError ? testCase.ExceptionDetails : testCase.AssertionDetails),
@@ -235,41 +238,38 @@ public class TestRunner : EditorWindow
                 {
                     foreach (var mInfo in beforeMethods) mInfo.Invoke(testClassInstance, null);
                     object parameters = testCase.Parameters;
-                    if (parameters is object[] {Length: > 0} paramsArray)
+
+                    var methodReturnValue = testMethod.Invoke(testClassInstance, (object[]) parameters);
+
+                    switch (methodReturnValue)
                     {
-                        var methodReturnValue = testMethod.Invoke(testClassInstance, paramsArray);
-                        if (methodReturnValue is List<SimpleAssert> simpleAsserts)
+                        case IEnumerator enumerator:
+                            var result = HandleCoroutineMethods(enumerator);
+                            for (var i = 0; i < result.Count; i++)
+                            {
+                                testCase.AssertionDetails += $"Iteration [{i}] returned {result[i]}\n";
+                            }
+
+                            break;
+                        case List<SimpleAssert> simpleAsserts:
                         {
                             for (var i = 0; i < simpleAsserts.Count; i++)
                                 if (simpleAsserts[i].Details.IsNotEmpty())
                                     testCase.AssertionDetails += $"{(i + 1)}. {simpleAsserts[i].Details}\n";
+                            break;
                         }
-                        else if (methodReturnValue != testCase.ExpectedResult)
-                            throw new Assertion.AssertionException(
-                                $"Expected return value is as expected. Expected: {testCase.ExpectedResult}, Returned: {methodReturnValue}");
-
-                        testCase.Passed = true;
-                        testCase.ErrorMessage = "";
-                        testClassAttribute.TestCasesResults.Add(testCase);
-                    }
-                    else
-                    {
-                        var methodReturnValue = testMethod.Invoke(testClassInstance, null);
-
-                        if (methodReturnValue is List<SimpleAssert> simpleAsserts)
+                        default:
                         {
-                            for (var i = 0; i < simpleAsserts.Count; i++)
-                                if (simpleAsserts[i].Details.IsNotEmpty())
-                                    testCase.AssertionDetails += $"{(i + 1)}. {simpleAsserts[i].Details}\n";
+                            if (methodReturnValue != testCase.ExpectedResult)
+                                throw new Assertion.AssertionException(
+                                    $"Expected return value is as expected. Expected: {testCase.ExpectedResult}, Returned: {methodReturnValue}");
+                            break;
                         }
-                        else if (methodReturnValue != testCase.ExpectedResult)
-                            throw new Assertion.AssertionException(
-                                $"Expected return value is not as expected. Expected: {testCase.ExpectedResult}, Returned: {methodReturnValue}");
-
-                        testCase.Passed = true;
-                        testCase.ErrorMessage = "";
-                        testClassAttribute.TestCasesResults.Add(testCase);
                     }
+
+                    testCase.Passed = true;
+                    testCase.ErrorMessage = "";
+                    testClassAttribute.TestCasesResults.Add(testCase);
 
                     foreach (var mInfo in afterMethods) mInfo.Invoke(testClassInstance, null);
                 }
@@ -309,5 +309,18 @@ public class TestRunner : EditorWindow
 
         testClassAttribute.ElapsedTime = generalStopWatch.ElapsedMilliseconds;
         generalStopWatch.Stop();
+    }
+
+    private static List<object> HandleCoroutineMethods(IEnumerator enumerator)
+    {
+        var returnedValues = new List<object>();
+        while (enumerator.MoveNext())
+        {
+            returnedValues.Add(enumerator.Current);
+            if (enumerator.Current is IEnumerator subEnumerator)
+                returnedValues.AddRange(HandleCoroutineMethods(subEnumerator));
+        }
+
+        return returnedValues;
     }
 }

@@ -54,9 +54,9 @@ public static class Assertion
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
         sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
-        if (sa.Value.Equals(value)) return sa;
+        if (Equals(sa.Value, value)) return sa;
         sa.Succeed = false;
-        sa.FailMessage = $"IsEqual: {sa.Value} != {value}";
+        sa.FailMessage = $"IsEqual: {sa.Value ?? "null"} is not equal {value ?? "null"}";
 
         return sa;
     }
@@ -66,11 +66,9 @@ public static class Assertion
         if (!sa.Succeed)
             throw new AssertionException(sa.FailMessage);
         sa.PreviousAssertionName = MethodBase.GetCurrentMethod().Name;
-        if (sa.Value.Equals(value))
-        {
-            sa.Succeed = false;
-            sa.FailMessage = $"IsNotEqual: {sa.Value} == {value}";
-        }
+        if (!Equals(sa.Value, value)) return sa;
+        sa.Succeed = false;
+        sa.FailMessage = $"IsNotEqual: {sa.Value ?? "null"} is equal {value ?? "null"}";
 
         return sa;
     }
